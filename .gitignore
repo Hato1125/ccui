@@ -1,0 +1,13 @@
+/.claude/
+/.xmake/
+/.vs/
+/.vscode/
+/.cache/
+/.idea/
+
+/build/
+/play/
+
+.DS_Store
+Thumbs.db
+compile_commands.json
