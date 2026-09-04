@@ -5,12 +5,19 @@
 #include <utility>
 #include <type_traits>
 
+#include "type.hh"
+
 namespace neko {
   template <class T>
-  concept stateless = requires(const T& t) {
-    { t.measure() };
-    { t.layout() };
-    { t.paint() };
+  concept stateless = requires(
+    const T& t,
+    const constraint& c,
+    const point& o,
+    const extent& e
+  ) {
+    { t.measure(c) } -> std::same_as<extent>;
+    { t.layout(o) };
+    { t.paint(o, e) };
   };
 
   template <class T>
@@ -30,31 +37,51 @@ namespace neko {
   template <stateful S>
   struct mounted;
 
+  template <class>
+  inline constexpr bool is_mounted = false;
+
+  template <stateful S>
+  inline constexpr bool is_mounted<mounted<S>> = true;
+
+  template <class W>
+  concept mounted_widget = is_mounted<std::remove_cvref_t<W>>;
+
+  template <class W>
+  struct node {
+    W widget;
+    extent size;
+    point offset;
+  };
+
   template <template <class...> class C, class... Cs>
     requires container<C<Cs...>>
   auto mount(C<Cs...> c);
 
   auto mount(stateless auto s) {
-    return s;
+    return node{s};
   }
 
   auto mount(stateful auto s) {
     auto tree = mount(s.body());
-    return mounted {
-      std::move(s),
-      std::move(tree)
+    return node {
+      mounted {
+        std::move(s),
+        std::move(tree)
+      }
     };
   }
 
   template <template <class...> class C, class... Cs>
     requires container<C<Cs...>>
   auto mount(C<Cs...> c) {
-    return std::apply(
-      [](auto... xs) {
-        return C{ mount(std::move(xs))... };
-      },
-      std::move(c.children)
-    );
+    return node {
+      std::apply(
+        [](auto... xs) {
+          return C{ mount(std::move(xs))... };
+        },
+        std::move(c.children)
+      )
+    };
   }
 
   template <stateful S>
@@ -63,49 +90,41 @@ namespace neko {
     decltype(mount(self.body())) tree;
   };
 
-  auto measure(stateless auto& s) {
-    s.measure();
+
+  template <class W>
+  extent measure(node<W>& n, const constraint& c) {
+    if constexpr (stateless<W>) {
+      n.size = n.widget.measure(c);
+    } else if constexpr (container<W>) {
+      n.size = n.widget.measure(c);
+    } else if constexpr (mounted_widget<W>) {
+      n.size = measure(n.widget.tree,  c);
+    }
+    return n.size;
   }
 
-  auto layout(stateless auto& s) {
-    s.layout();
-  }
+  template <class W>
+  void layout(node<W>& n, const point& o) {
+    n.offset = o;
 
-  auto paint(stateless auto& s) {
-    s.paint();
-  }
-
-  auto measure(container auto& c) {
-    template for (auto& ch : c.children) {
-      measure(ch);
+    if constexpr (stateless<W>) {
+      n.widget.layout(o);
+    } else if constexpr (container<W>) {
+      n.widget.layout(o);
+    } else if constexpr (mounted_widget<W>) {
+      layout(n.widget.tree, o);
     }
   }
 
-  auto layout(container auto& c) {
-    template for (auto& ch : c.children) {
-      layout(ch);
+  template <class W>
+  void paint(node<W>& n) {
+    if constexpr (stateless<W>) {
+      n.widget.paint(n.offset, n.size);
+    } else if constexpr (container<W>) {
+      n.widget.paint(n.offset, n.size);
+    } else if constexpr (mounted_widget<W>) {
+      paint(n.widget.tree);
     }
-  }
-
-  auto paint(container auto& c) {
-    template for (auto& ch : c.children) {
-      paint(ch);
-    }
-  }
-
-  template <stateful S>
-  auto measure(mounted<S>& m) {
-    measure(m.tree);
-  }
-
-  template <stateful S>
-  auto layout(mounted<S>& m) {
-    layout(m.tree);
-  }
-
-  template <stateful S>
-  auto paint(mounted<S>& m) {
-    paint(m.tree);
   }
 }
 
