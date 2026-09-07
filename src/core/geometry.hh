@@ -1,5 +1,5 @@
-#ifndef _CCUI_TYPE_HH
-#define _CCUI_TYPE_HH
+#ifndef _CCUI_CORE_GEOMETRY_HH
+#define _CCUI_CORE_GEOMETRY_HH
 
 namespace ccui {
   struct extent {
