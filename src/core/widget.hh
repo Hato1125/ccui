@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "core/geometry.hh"
+#include "gfx/canvas.hh"
 
 namespace ccui {
   template <class T>
@@ -13,11 +14,12 @@ namespace ccui {
     const T& t,
     const constraint& c,
     const point& o,
-    const extent& e
+    const extent& e,
+    gfx::canvas& cv
   ) {
     { t.measure(c) } -> std::same_as<extent>;
     { t.layout(o) };
-    { t.paint(o, e) };
+    { t.paint(o, e, cv) };
   };
 
   template <class T>

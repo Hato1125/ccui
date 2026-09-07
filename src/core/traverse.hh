@@ -31,13 +31,13 @@ namespace ccui {
   }
 
   template <class W>
-  void paint(node<W>& n) {
+  void paint(node<W>& n, gfx::canvas& cv) {
     if constexpr (stateless<W>) {
-      n.widget.paint(n.offset, n.size);
+      n.widget.paint(n.offset, n.size, cv);
     } else if constexpr (container<W>) {
-      n.widget.paint(n.offset, n.size);
+      n.widget.paint(n.offset, n.size, cv);
     } else if constexpr (mounted_widget<W>) {
-      paint(n.widget.tree);
+      paint(n.widget.tree, cv);
     }
   }
 }
