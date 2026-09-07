@@ -1,5 +1,5 @@
-#ifndef _NEKO_CORE_HH
-#define _NEKO_CORE_HH
+#ifndef _CCUI_CORE_HH
+#define _CCUI_CORE_HH
 
 #include <tuple>
 #include <utility>
@@ -7,7 +7,7 @@
 
 #include "type.hh"
 
-namespace neko {
+namespace ccui {
   template <class T>
   concept stateless = requires(
     const T& t,

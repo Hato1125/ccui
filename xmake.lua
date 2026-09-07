@@ -1,7 +1,8 @@
 add_rules('mode.debug', 'mode.release')
 
+set_toolchains('gcc')
 
-target('neko')
+target('ccui')
   set_kind('static')
   set_languages('c++26')
   add_files('src/**.cc')

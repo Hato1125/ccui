@@ -1,7 +1,7 @@
-#ifndef _NEKO_TYPE_HH
-#define _NEKO_TYPE_HH
+#ifndef _CCUI_TYPE_HH
+#define _CCUI_TYPE_HH
 
-namespace neko {
+namespace ccui {
   struct extent {
     float width = 0.0f;
     float height = 0.0f;
