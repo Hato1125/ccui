@@ -72,45 +72,56 @@ namespace ccui {
     }
 
     ~window() override {
-      _canvas.reset();
-
-      if (_ctx) {
-        SDL_GL_DestroyContext(_ctx);
-      }
-      if (_handle) {
-        SDL_DestroyWindow(_handle);
-      }
+      destroy();
     }
 
     window(const window&) = delete;
     window& operator=(const window&) = delete;
 
     bool handle_event(SDL_Event& ev) override {
-      return false;
+      switch (ev.type) {
+        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+          destroy();
+          break;
+      }
+      return true;
     }
 
     void frame() override {
+      SDL_GL_MakeCurrent(_handle, _ctx);
+
       int width = 0;
       int height = 0;
       SDL_GetWindowSizeInPixels(_handle, &width, &height);
+      auto w = static_cast<float>(width);
+      auto h = static_cast<float>(height);
 
-      _canvas->resize(
-        static_cast<std::uint32_t>(width),
-        static_cast<std::uint32_t>(height)
-      );
+      _canvas->resize(w, h);
 
+      rebuild(_tree);
       measure(_tree, {
         .min = { 0.0f, 0.0f },
-        .max = {
-          static_cast<float>(width),
-          static_cast<float>(height),
-        },
+        .max = { w, h },
       });
       layout(_tree, { 0.0f, 0.0f });
-
       _canvas->begin();
       paint(_tree, *_canvas);
       _canvas->end();
+
+      SDL_GL_SwapWindow(_handle);
+    }
+
+    void destroy() override {
+      _canvas.reset();
+
+      if (_ctx) {
+        SDL_GL_DestroyContext(_ctx);
+        _ctx = nullptr;
+      }
+      if (_handle) {
+        SDL_DestroyWindow(_handle);
+        _handle = nullptr;
+      }
     }
 
     [[nodiscard]] bool has_id(const SDL_Event& ev) const noexcept override {

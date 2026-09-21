@@ -2,6 +2,7 @@
 #define _CCUI_CORE_WIDGET_HH
 
 #include <tuple>
+#include <ranges>
 #include <utility>
 #include <type_traits>
 
@@ -90,7 +91,47 @@ namespace ccui {
   struct mounted {
     S self;
     decltype(mount(self.body())) tree;
+    bool dirty;
   };
+
+  template <class W, class V>
+  void apply(node<W>& n, V&& next) {
+    if constexpr (container<W>) {
+      constexpr auto count =
+        std::tuple_size_v<std::remove_cvref_t<decltype(next.children)>>;
+
+      template for (constexpr auto i : std::views::iota(0uz, count)) {
+        apply(
+          std::get<i>(n.widget.children),
+          std::get<i>(next.children)
+        );
+      }
+    } else if constexpr (stateless<W>) {
+      n.widget = std::forward<V>(next);
+    }
+  }
+
+  template <class W>
+  void rebuild(node<W>& n) {
+    // 渡されたノードがmountedだったら
+    if constexpr (mounted_widget<W>) {
+      // このmountedがdirtyだったら新しく上書き
+      if (n.widget.dirty) {
+        apply(
+          n.widget.tree,
+          n.widget.self.body()
+        );
+        n.widget.dirty = false;
+      }
+      // そのまま自分のツリーを辿っていく
+      rebuild(n.widget.tree);
+    } else if constexpr (container<W>) {
+      // コンテナは自分の子供全てにツリーを辿らせる
+      template for (auto& child : n.widget.children) {
+        rebuild(child);
+      }
+    }
+  }
 }
 
 #endif
