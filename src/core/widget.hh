@@ -37,6 +37,11 @@ namespace ccui {
     >::type;
   };
 
+  template <class T, class E>
+  concept dispatchable = requires(const T& t, const E& ev) {
+    { t.dispatch(ev) } -> std::same_as<bool>;
+  };
+
   template <stateful S>
   struct mounted;
 
@@ -113,9 +118,7 @@ namespace ccui {
 
   template <class W>
   void rebuild(node<W>& n) {
-    // 渡されたノードがmountedだったら
     if constexpr (mounted_widget<W>) {
-      // このmountedがdirtyだったら新しく上書き
       if (n.widget.dirty) {
         apply(
           n.widget.tree,
@@ -123,14 +126,23 @@ namespace ccui {
         );
         n.widget.dirty = false;
       }
-      // そのまま自分のツリーを辿っていく
       rebuild(n.widget.tree);
     } else if constexpr (container<W>) {
-      // コンテナは自分の子供全てにツリーを辿らせる
       template for (auto& child : n.widget.children) {
         rebuild(child);
       }
     }
+  }
+
+  template <class W, class E>
+  bool dispatch(node<W>& n, const E& ev) {
+    if constexpr (mounted_widget<W>) {
+      return dispatch(n.widget.tree, ev);
+    } else if constexpr (dispatchable<W, E>) {
+      return n.widget.dispatch(ev);
+    }
+
+    return false;
   }
 }
 

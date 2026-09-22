@@ -9,6 +9,7 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_properties.h>
 
+#include "../event.hh"
 #include "scene.hh"
 #include "core/widget.hh"
 #include "core/traverse.hh"
@@ -82,6 +83,31 @@ namespace ccui {
       switch (ev.type) {
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
           destroy();
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+          dispatch(_tree, mouse_press {
+            .button = static_cast<mouse_button>(ev.button.button),
+            .down = true,
+          });
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+          dispatch(_tree, mouse_press {
+            .button = static_cast<mouse_button>(ev.button.button),
+            .down = false,
+          });
+          break;
+        case SDL_EVENT_MOUSE_WHEEL:
+          dispatch(_tree, mouse_wheel {
+            .direction = static_cast<wheel_direction>(ev.wheel.direction),
+            .x = ev.wheel.x,
+            .y = ev.wheel.y,
+          });
+          break;
+        case SDL_EVENT_MOUSE_MOTION:
+          dispatch(_tree, mouse_motion {
+            .x = ev.motion.x,
+            .y = ev.motion.y,
+          });
           break;
       }
       return true;
