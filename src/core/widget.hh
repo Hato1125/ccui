@@ -4,6 +4,7 @@
 #include <tuple>
 #include <ranges>
 #include <utility>
+#include <cstdint>
 #include <type_traits>
 
 #include "core/geometry.hh"
@@ -37,9 +38,23 @@ namespace ccui {
     >::type;
   };
 
+  using node_id = std::uint32_t;
+
+  class scene;
+  struct dispatch_context {
+    scene& owner;
+    node_id self;
+
+    void focus() noexcept;
+  };
+
   template <class T, class E>
-  concept dispatchable = requires(const T& t, const E& ev) {
-    { t.dispatch(ev) } -> std::same_as<bool>;
+  concept dispatchable = requires(
+    const T& t,
+    const E& ev,
+    dispatch_context& ctx
+  ) {
+    { t.dispatch(ev, ctx) } -> std::same_as<bool>;
   };
 
   template <stateful S>
@@ -56,23 +71,38 @@ namespace ccui {
 
   template <class W>
   struct node {
+    node_id id = 0;
+
     W widget;
     extent size;
     point offset;
+
+    bool focusable = false;
+    node_id next = 0;
+    node_id prev = 0;
   };
+
+  inline node_id next_node_id = 0;
 
   template <template <class...> class C, class... Cs>
     requires container<C<Cs...>>
   auto mount(C<Cs...> c);
 
   auto mount(stateless auto s) {
-    return node{s};
+    next_node_id++;
+
+    return node {
+      .id = next_node_id,
+      .widget = s,
+    };
   }
 
   auto mount(stateful auto s) {
+    auto id = ++next_node_id;
     auto tree = mount(s.body());
     return node {
-      mounted {
+      .id = id,
+      .widget = mounted {
         std::move(s),
         std::move(tree)
       }
@@ -82,8 +112,11 @@ namespace ccui {
   template <template <class...> class C, class... Cs>
     requires container<C<Cs...>>
   auto mount(C<Cs...> c) {
+    next_node_id++;
+
     return node {
-      std::apply(
+      .id = next_node_id,
+      .widget = std::apply(
         [](auto... xs) {
           return C{ mount(std::move(xs))... };
         },
@@ -135,11 +168,11 @@ namespace ccui {
   }
 
   template <class W, class E>
-  bool dispatch(node<W>& n, const E& ev) {
+  bool dispatch(node<W>& n, const E& ev, scene& owner) {
     if constexpr (mounted_widget<W>) {
-      return dispatch(n.widget.tree, ev);
+      return dispatch(n.widget.tree, ev, owner);
     } else if constexpr (dispatchable<W, E>) {
-      return n.widget.dispatch(ev);
+      return n.widget.dispatch(ev, { owner, n.id });
     }
 
     return false;

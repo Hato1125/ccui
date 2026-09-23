@@ -88,26 +88,26 @@ namespace ccui {
           dispatch(_tree, mouse_press {
             .button = static_cast<mouse_button>(ev.button.button),
             .down = true,
-          });
+          }, *this);
           break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
           dispatch(_tree, mouse_press {
             .button = static_cast<mouse_button>(ev.button.button),
             .down = false,
-          });
+          }, *this);
           break;
         case SDL_EVENT_MOUSE_WHEEL:
           dispatch(_tree, mouse_wheel {
             .direction = static_cast<wheel_direction>(ev.wheel.direction),
             .x = ev.wheel.x,
             .y = ev.wheel.y,
-          });
+          }, *this);
           break;
         case SDL_EVENT_MOUSE_MOTION:
           dispatch(_tree, mouse_motion {
             .x = ev.motion.x,
             .y = ev.motion.y,
-          });
+          }, *this);
           break;
       }
       return true;
@@ -150,6 +150,10 @@ namespace ccui {
       }
     }
 
+    void focuse(node_id node) noexcept override {
+      _focused_id = node;
+    }
+
     [[nodiscard]] bool has_id(const SDL_Event& ev) const noexcept override {
       return SDL_GetWindowFromEvent(&ev) == _handle;
     }
@@ -176,6 +180,7 @@ namespace ccui {
     std::optional<gfx::canvas> _canvas;
 
     node<mounted<S>> _tree;
+    node_id _focused_id = 0;
   };
 }
 
