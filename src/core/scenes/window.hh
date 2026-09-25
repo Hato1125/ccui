@@ -110,16 +110,21 @@ namespace ccui {
           }, *this);
           break;
         case SDL_EVENT_KEY_DOWN:
-        case SDL_EVENT_KEY_UP:
-          if (_focused_id != 0) {
-            dispatch_to(_tree, _focused_id, key_press {
-              .key = ev.key.key,
-              .mod = ev.key.mod,
-              .down = ev.key.down,
-              .repeat = ev.key.repeat,
-            }, *this);
+        case SDL_EVENT_KEY_UP: {
+          key_press key {
+            .key = ev.key.key,
+            .mod = ev.key.mod,
+            .down = ev.key.down,
+            .repeat = ev.key.repeat,
+          };
+
+          auto disp = dispatch_to(_tree, _focused_id, key, *this);
+          auto handled = _focused_id != 0 && disp;
+          if (!handled && key.down && key.key == SDLK_TAB) {
+            move_focus((key.mod & SDL_KMOD_SHIFT) != 0);
           }
           break;
+        }
       }
       return true;
     }
@@ -183,7 +188,20 @@ namespace ccui {
       : _handle(handle),
         _ctx(ctx),
         _canvas(std::move(canvas)),
-        _tree(mount(std::move(root))) {}
+        _tree(mount(std::move(root))) {
+      auto range = link_focus(_tree);
+      _focus_first = range.first;
+      _focus_last = range.last;
+    }
+
+    void move_focus(bool backward) noexcept {
+      auto link = find_focus_link(_tree, _focused_id);
+      auto target = backward ? link.prev : link.next;
+      if (target == 0) {
+        target = backward ? _focus_last : _focus_first;
+      }
+      _focused_id = target;
+    }
 
     SDL_Window* _handle = nullptr;
     SDL_GLContext _ctx = nullptr;
@@ -192,6 +210,8 @@ namespace ccui {
 
     node<mounted<S>> _tree;
     node_id _focused_id = 0;
+    node_id _focus_first = 0;
+    node_id _focus_last = 0;
   };
 }
 

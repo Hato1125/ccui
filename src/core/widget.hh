@@ -210,6 +210,79 @@ namespace ccui {
 
     return false;
   }
+
+  struct focus_chain {
+    node_id first = 0;
+    node_id* first_prev = nullptr;
+
+    node_id last = 0;
+    node_id* last_next = nullptr;
+  };
+
+  template <class W>
+  void link_focus(node<W>& n, focus_chain& chain) {
+    if constexpr (focusable<W>) {
+      if (chain.last_next) {
+        *chain.last_next = n.id;
+        n.prev = chain.last;
+      } else {
+        chain.first = n.id;
+        chain.first_prev = &n.prev;
+      }
+      chain.last = n.id;
+      chain.last_next = &n.next;
+    }
+
+    if constexpr (mounted_widget<W>) {
+      link_focus(n.widget.tree, chain);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        link_focus(child, chain);
+      }
+    }
+  }
+
+  struct focus_range {
+    node_id first = 0;
+    node_id last = 0;
+  };
+
+  template <class W>
+  focus_range link_focus(node<W>& root) {
+    focus_chain chain;
+    link_focus(root, chain);
+
+    if (chain.last_next) {
+      *chain.last_next = chain.first;
+      *chain.first_prev = chain.last;
+    }
+    return { chain.first, chain.last };
+  }
+
+  struct focus_link {
+    node_id next = 0;
+    node_id prev = 0;
+  };
+
+  template <class W>
+  focus_link find_focus_link(node<W>& n, node_id target) {
+    if (n.id == target) {
+      return { n.next, n.prev };
+    }
+
+    if constexpr (mounted_widget<W>) {
+      return find_focus_link(n.widget.tree, target);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        auto link = find_focus_link(child, target);
+        if (link.next != 0) {
+          return link;
+        }
+      }
+    }
+
+    return {};
+  }
 }
 
 #endif
