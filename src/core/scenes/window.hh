@@ -109,6 +109,17 @@ namespace ccui {
             .y = ev.motion.y,
           }, *this);
           break;
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
+          if (_focused_id != 0) {
+            dispatch_to(_tree, _focused_id, key_press {
+              .key = ev.key.key,
+              .mod = ev.key.mod,
+              .down = ev.key.down,
+              .repeat = ev.key.repeat,
+            }, *this);
+          }
+          break;
       }
       return true;
     }

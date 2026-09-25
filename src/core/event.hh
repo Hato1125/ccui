@@ -1,6 +1,9 @@
 #ifndef _CCUI_CORE_EVENT_HH
 #define _CCUI_CORE_EVENT_HH
 
+#include <cstdint>
+#include <tuple>
+
 namespace ccui {
   enum class mouse_button {
     left = 1,
@@ -30,6 +33,15 @@ namespace ccui {
     float x = 0.0f;
     float y = 0.0f;
   };
+
+  struct key_press {
+    std::uint32_t key = 0;
+    std::uint16_t mod = 0;
+    bool down = false;
+    bool repeat = false;
+  };
+
+  using focus_events = std::tuple<key_press>;
 }
 
 #endif

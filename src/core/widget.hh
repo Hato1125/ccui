@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "core/event.hh"
 #include "core/geometry.hh"
 #include "gfx/canvas.hh"
 
@@ -56,6 +57,16 @@ namespace ccui {
   ) {
     { t.dispatch(ev, ctx) } -> std::same_as<bool>;
   };
+
+  template <class W, class Events>
+  inline constexpr bool dispatchable_any = false;
+
+  template <class W, class... Es>
+  inline constexpr bool dispatchable_any<W, std::tuple<Es...>> =
+    (dispatchable<W, Es> || ...);
+
+  template <class W>
+  concept focusable = dispatchable_any<W, focus_events>;
 
   template <stateful S>
   struct mounted;
@@ -173,6 +184,28 @@ namespace ccui {
       return dispatch(n.widget.tree, ev, owner);
     } else if constexpr (dispatchable<W, E>) {
       return n.widget.dispatch(ev, { owner, n.id });
+    }
+
+    return false;
+  }
+
+  template <class W, class E>
+  bool dispatch_to(node<W>& n, node_id target, const E& ev, scene& owner) {
+    if (n.id == target) {
+      if constexpr (dispatchable<W, E>) {
+        return n.widget.dispatch(ev, { owner, n.id });
+      }
+      return false;
+    }
+
+    if constexpr (mounted_widget<W>) {
+      return dispatch_to(n.widget.tree, target, ev, owner);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        if (dispatch_to(child, target, ev, owner)) {
+          return true;
+        }
+      }
     }
 
     return false;
