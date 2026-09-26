@@ -35,6 +35,7 @@ namespace ccui {
       SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, opts.width);
       SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, opts.height);
       SDL_SetBooleanProperty(p, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
+      SDL_SetBooleanProperty(p, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
 
       auto* handle = SDL_CreateWindowWithProperties(p);
       SDL_DestroyProperties(p);
@@ -147,13 +148,17 @@ namespace ccui {
     void frame() override {
       SDL_GL_MakeCurrent(_handle, _ctx);
 
+      int pixel_width = 0;
+      int pixel_height = 0;
+      SDL_GetWindowSizeInPixels(_handle, &pixel_width, &pixel_height);
+      _canvas->resize(pixel_width, pixel_height);
+      _canvas->set_scale(SDL_GetWindowPixelDensity(_handle));
+
       int width = 0;
       int height = 0;
-      SDL_GetWindowSizeInPixels(_handle, &width, &height);
+      SDL_GetWindowSize(_handle, &width, &height);
       auto w = static_cast<float>(width);
       auto h = static_cast<float>(height);
-
-      _canvas->resize(w, h);
 
       rebuild(_tree, _focused_id, _hovered_id);
       measure(_tree, {
