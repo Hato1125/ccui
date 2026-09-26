@@ -69,6 +69,8 @@ namespace ccui {
   struct dispatch_context {
     scene& owner;
     node_id self;
+    point offset;
+    extent size;
 
     void focus() noexcept;
   };
@@ -231,10 +233,21 @@ namespace ccui {
   bool dispatch(node<W>& n, const E& ev, scene& owner) {
     if constexpr (mounted_widget<W>) {
       return dispatch(n.widget.tree, ev, owner);
-    } else if constexpr (dispatchable<W, E>) {
-      return n.widget.dispatch(ev, { owner, n.id });
+    } else if constexpr (container<W>) {
+      constexpr auto count =
+        std::tuple_size_v<std::remove_cvref_t<decltype(n.widget.children)>>;
+
+      template for (constexpr auto i : std::views::iota(0uz, count)) {
+        auto& child = std::get<count - 1 - i>(n.widget.children);
+        if (dispatch(child, ev, owner)) {
+          return true;
+        }
+      }
     }
 
+    if constexpr (dispatchable<W, E>) {
+      return n.widget.dispatch(ev, { owner, n.id, n.offset, n.size });
+    }
     return false;
   }
 
@@ -242,7 +255,7 @@ namespace ccui {
   bool dispatch_to(node<W>& n, node_id target, const E& ev, scene& owner) {
     if (n.id == target) {
       if constexpr (dispatchable<W, E>) {
-        return n.widget.dispatch(ev, { owner, n.id });
+        return n.widget.dispatch(ev, { owner, n.id, n.offset, n.size });
       }
       return false;
     }

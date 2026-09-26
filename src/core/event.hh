@@ -21,6 +21,8 @@ namespace ccui {
   struct mouse_press {
     mouse_button button;
     bool down;
+    float x = 0.0f;
+    float y = 0.0f;
   };
 
   struct mouse_wheel {

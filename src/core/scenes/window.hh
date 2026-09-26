@@ -88,12 +88,16 @@ namespace ccui {
           dispatch(_tree, mouse_press {
             .button = static_cast<mouse_button>(ev.button.button),
             .down = true,
+            .x = ev.button.x,
+            .y = ev.button.y,
           }, *this);
           break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
           dispatch(_tree, mouse_press {
             .button = static_cast<mouse_button>(ev.button.button),
             .down = false,
+            .x = ev.button.x,
+            .y = ev.button.y,
           }, *this);
           break;
         case SDL_EVENT_MOUSE_WHEEL:
