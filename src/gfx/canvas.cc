@@ -64,7 +64,11 @@ namespace ccui::gfx {
     : _tvg(tvg), _ctx(ctx), _width(width), _height(height) {}
 
   canvas::canvas(canvas&& other) noexcept
-    : _tvg(other._tvg), _ctx(other._ctx), _width(other._width), _height(other._height) {
+    : _tvg(other._tvg),
+      _ctx(other._ctx),
+      _width(other._width),
+      _height(other._height),
+      _scale(other._scale) {
     other._tvg = nullptr;
   }
 
@@ -79,6 +83,7 @@ namespace ccui::gfx {
     _ctx = other._ctx;
     _width = other._width;
     _height = other._height;
+    _scale = other._scale;
     other._tvg = nullptr;
 
     return *this;
@@ -112,6 +117,10 @@ namespace ccui::gfx {
     return true;
   }
 
+  void canvas::set_scale(float factor) noexcept {
+    _scale = factor;
+  }
+
   bool canvas::begin() {
     return _tvg->remove() == tvg::Result::Success;
   }
@@ -135,6 +144,7 @@ namespace ccui::gfx {
     auto* shape = tvg::Shape::gen();
     shape->appendRect(x, y, w, h, radius, radius);
     shape->fill(c.r, c.g, c.b, c.a);
+    shape->scale(_scale);
 
     _tvg->add(shape);
   }
@@ -148,6 +158,7 @@ namespace ccui::gfx {
     auto* shape = tvg::Shape::gen();
     shape->appendCircle(cx, cy, radius, radius);
     shape->fill(c.r, c.g, c.b, c.a);
+    shape->scale(_scale);
 
     _tvg->add(shape);
   }
@@ -167,6 +178,7 @@ namespace ccui::gfx {
     shape->lineTo(x3, y3);
     shape->close();
     shape->fill(c.r, c.g, c.b, c.a);
+    shape->scale(_scale);
 
     _tvg->add(shape);
   }

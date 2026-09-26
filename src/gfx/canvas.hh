@@ -32,6 +32,8 @@ namespace ccui::gfx {
 
     bool resize(std::uint32_t width, std::uint32_t height);
 
+    void set_scale(float factor) noexcept;
+
     bool begin();
     bool end();
 
@@ -73,6 +75,7 @@ namespace ccui::gfx {
     void* _ctx = nullptr;
     std::uint32_t _width = 0;
     std::uint32_t _height = 0;
+    float _scale = 1.0f;
   };
 }
 
