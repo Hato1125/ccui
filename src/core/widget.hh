@@ -74,8 +74,6 @@ namespace ccui {
   struct dispatch_context {
     scene& owner;
     node_id self;
-    point offset;
-    extent size;
 
     void focus() noexcept;
   };
@@ -236,32 +234,10 @@ namespace ccui {
   }
 
   template <class W, class E>
-  bool dispatch(node<W>& n, const E& ev, scene& owner) {
-    if constexpr (mounted_widget<W>) {
-      return dispatch(n.widget.tree, ev, owner);
-    } else if constexpr (container<W>) {
-      constexpr auto count =
-        std::tuple_size_v<std::remove_cvref_t<decltype(n.widget.children)>>;
-
-      template for (constexpr auto i : std::views::iota(0uz, count)) {
-        auto& child = std::get<count - 1 - i>(n.widget.children);
-        if (dispatch(child, ev, owner)) {
-          return true;
-        }
-      }
-    }
-
-    if constexpr (dispatchable<W, E>) {
-      return n.widget.dispatch(ev, { owner, n.id, n.offset, n.size });
-    }
-    return false;
-  }
-
-  template <class W, class E>
   bool dispatch_to(node<W>& n, node_id target, const E& ev, scene& owner) {
     if (n.id == target) {
       if constexpr (dispatchable<W, E>) {
-        return n.widget.dispatch(ev, { owner, n.id, n.offset, n.size });
+        return n.widget.dispatch(ev, { owner, n.id });
       }
       return false;
     }
@@ -277,6 +253,71 @@ namespace ccui {
     }
 
     return false;
+  }
+
+  enum class bubble_result {
+    missing,
+    pending,
+    handled,
+  };
+
+  template <class W, class E>
+  bubble_result bubble(node<W>& n, node_id target, const E& ev, scene& owner) {
+    auto result = bubble_result::missing;
+    if (n.id == target) {
+      result = bubble_result::pending;
+    } else if constexpr (mounted_widget<W>) {
+      result = bubble(n.widget.tree, target, ev, owner);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        if (result == bubble_result::missing) {
+          result = bubble(child, target, ev, owner);
+        }
+      }
+    }
+
+    if (result != bubble_result::pending) {
+      return result;
+    }
+    if constexpr (dispatchable<W, E>) {
+      if (n.widget.dispatch(ev, { owner, n.id })) {
+        return bubble_result::handled;
+      }
+    }
+    return bubble_result::pending;
+  }
+
+  template <class W, class E>
+  bool dispatch_bubble(node<W>& n, node_id target, const E& ev, scene& owner) {
+    return bubble(n, target, ev, owner) == bubble_result::handled;
+  }
+
+  struct focus_hit {
+    bool found = false;
+    node_id focus = 0;
+  };
+
+  template <class W>
+  focus_hit find_focusable(node<W>& n, node_id target) {
+    focus_hit hit;
+    if (n.id == target) {
+      hit.found = true;
+    } else if constexpr (mounted_widget<W>) {
+      hit = find_focusable(n.widget.tree, target);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        if (!hit.found) {
+          hit = find_focusable(child, target);
+        }
+      }
+    }
+
+    if constexpr (focusable<W>) {
+      if (hit.found && hit.focus == 0) {
+        hit.focus = n.id;
+      }
+    }
+    return hit;
   }
 
   struct focus_chain {

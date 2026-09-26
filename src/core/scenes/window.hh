@@ -85,23 +85,28 @@ namespace ccui {
           destroy();
           break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-          dispatch(_tree, mouse_press {
+        case SDL_EVENT_MOUSE_BUTTON_UP: {
+          mouse_press press {
             .button = static_cast<mouse_button>(ev.button.button),
-            .down = true,
+            .down = ev.button.down,
             .x = ev.button.x,
             .y = ev.button.y,
-          }, *this);
+          };
+
+          set_hover(hover_within(_tree, press.x, press.y));
+          dispatch_bubble(_tree, _hovered_id, press, *this);
+
+          if (press.down && press.button == mouse_button::left) {
+            auto hit = find_focusable(_tree, _hovered_id);
+            if (hit.focus != 0) {
+              set_focus(hit.focus);
+            }
+          }
           break;
-        case SDL_EVENT_MOUSE_BUTTON_UP:
-          dispatch(_tree, mouse_press {
-            .button = static_cast<mouse_button>(ev.button.button),
-            .down = false,
-            .x = ev.button.x,
-            .y = ev.button.y,
-          }, *this);
-          break;
+        }
         case SDL_EVENT_MOUSE_WHEEL:
-          dispatch(_tree, mouse_wheel {
+          set_hover(hover_within(_tree, ev.wheel.mouse_x, ev.wheel.mouse_y));
+          dispatch_bubble(_tree, _hovered_id, mouse_wheel {
             .direction = static_cast<wheel_direction>(ev.wheel.direction),
             .x = ev.wheel.x,
             .y = ev.wheel.y,
@@ -109,7 +114,7 @@ namespace ccui {
           break;
         case SDL_EVENT_MOUSE_MOTION:
           set_hover(hover_within(_tree, ev.motion.x, ev.motion.y));
-          dispatch(_tree, mouse_motion {
+          dispatch_bubble(_tree, _hovered_id, mouse_motion {
             .x = ev.motion.x,
             .y = ev.motion.y,
           }, *this);
