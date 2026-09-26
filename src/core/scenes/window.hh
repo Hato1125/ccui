@@ -135,6 +135,8 @@ namespace ccui {
           auto handled = _focused_id != 0 && disp;
           if (!handled && key.down && key.key == SDLK_TAB) {
             move_focus((key.mod & SDL_KMOD_SHIFT) != 0);
+          } else if (!handled && key.down && key.key == SDLK_ESCAPE) {
+            set_focus(0);
           }
           break;
         }
