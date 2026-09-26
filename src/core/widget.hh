@@ -31,9 +31,14 @@ namespace ccui {
     node_id self = 0;
     node_id last = 0;
     node_id focused = 0;
+    node_id hovered = 0;
 
     [[nodiscard]] bool focused_within() const noexcept {
       return self <= focused && focused <= last;
+    }
+
+    [[nodiscard]] bool hovered_within() const noexcept {
+      return self <= hovered && hovered <= last;
     }
   };
 
@@ -186,7 +191,7 @@ namespace ccui {
   }
 
   template <class W>
-  void rebuild(node<W>& n, node_id focused = 0) {
+  void rebuild(node<W>& n, node_id focused = 0, node_id hovered = 0) {
     if constexpr (mounted_widget<W>) {
       if (n.widget.dirty) {
         apply(
@@ -195,20 +200,21 @@ namespace ccui {
             .self = n.id,
             .last = n.widget.last,
             .focused = focused,
+            .hovered = hovered,
           })
         );
         n.widget.dirty = false;
       }
-      rebuild(n.widget.tree, focused);
+      rebuild(n.widget.tree, focused, hovered);
     } else if constexpr (container<W>) {
       template for (auto& child : n.widget.children) {
-        rebuild(child, focused);
+        rebuild(child, focused, hovered);
       }
     }
   }
 
   template <class W>
-  void mark_focus_dirty(node<W>& n, node_id from, node_id to) {
+  void mark_context_dirty(node<W>& n, node_id from, node_id to) {
     if constexpr (mounted_widget<W>) {
       auto contains = [&](node_id id) {
         return n.id <= id && id <= n.widget.last;
@@ -221,10 +227,10 @@ namespace ccui {
       if constexpr (context_aware<S>) {
         n.widget.dirty = true;
       }
-      mark_focus_dirty(n.widget.tree, from, to);
+      mark_context_dirty(n.widget.tree, from, to);
     } else if constexpr (container<W>) {
       template for (auto& child : n.widget.children) {
-        mark_focus_dirty(child, from, to);
+        mark_context_dirty(child, from, to);
       }
     }
   }
@@ -344,6 +350,42 @@ namespace ccui {
     }
 
     return {};
+  }
+
+  template <class W>
+  bool is_hover(node<W>& n, float x, float y) {
+    return n.offset.x <= x
+      && n.offset.x + n.size.width > x
+      && n.offset.y <= y
+      && n.offset.y + n.size.height > y;
+  }
+
+  template <class W>
+  node_id hover_within(node<W>& n, float x, float y) {
+    if constexpr (mounted_widget<W>) {
+      return hover_within(n.widget.tree, x, y);
+    } else if constexpr (container<W>) {
+      if (!is_hover(n, x, y)) {
+        return 0;
+      }
+
+      constexpr auto count =
+        std::tuple_size_v<std::remove_cvref_t<decltype(n.widget.children)>>;
+
+      template for (constexpr auto i : std::views::iota(0uz, count)) {
+        auto& child = std::get<count - 1 - i>(n.widget.children);
+        auto id = hover_within(child, x, y);
+        if (id) {
+          return id;
+        }
+      }
+      return 0;
+    }
+
+    if (is_hover(n, x, y)) {
+      return n.id;
+    }
+    return 0;
   }
 }
 

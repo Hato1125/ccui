@@ -108,10 +108,14 @@ namespace ccui {
           }, *this);
           break;
         case SDL_EVENT_MOUSE_MOTION:
+          set_hover(hover_within(_tree, ev.motion.x, ev.motion.y));
           dispatch(_tree, mouse_motion {
             .x = ev.motion.x,
             .y = ev.motion.y,
           }, *this);
+          break;
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+          set_hover(0);
           break;
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP: {
@@ -144,7 +148,7 @@ namespace ccui {
 
       _canvas->resize(w, h);
 
-      rebuild(_tree, _focused_id);
+      rebuild(_tree, _focused_id, _hovered_id);
       measure(_tree, {
         .min = { 0.0f, 0.0f },
         .max = { w, h },
@@ -211,8 +215,16 @@ namespace ccui {
       if (id == _focused_id) {
         return;
       }
-      mark_focus_dirty(_tree, _focused_id, id);
+      mark_context_dirty(_tree, _focused_id, id);
       _focused_id = id;
+    }
+
+    void set_hover(node_id id) noexcept {
+      if (id == _hovered_id) {
+        return;
+      }
+      mark_context_dirty(_tree, _hovered_id, id);
+      _hovered_id = id;
     }
 
     SDL_Window* _handle = nullptr;
@@ -221,6 +233,7 @@ namespace ccui {
     std::optional<gfx::canvas> _canvas;
 
     node<mounted<S>> _tree;
+    node_id _hovered_id = 0;
     node_id _focused_id = 0;
     node_id _focus_first = 0;
     node_id _focus_last = 0;
