@@ -140,7 +140,7 @@ namespace ccui {
 
       _canvas->resize(w, h);
 
-      rebuild(_tree);
+      rebuild(_tree, _focused_id);
       measure(_tree, {
         .min = { 0.0f, 0.0f },
         .max = { w, h },
@@ -167,7 +167,7 @@ namespace ccui {
     }
 
     void focuse(node_id node) noexcept override {
-      _focused_id = node;
+      set_focus(node);
     }
 
     [[nodiscard]] bool has_id(const SDL_Event& ev) const noexcept override {
@@ -200,7 +200,15 @@ namespace ccui {
       if (target == 0) {
         target = backward ? _focus_last : _focus_first;
       }
-      _focused_id = target;
+      set_focus(target);
+    }
+
+    void set_focus(node_id id) noexcept {
+      if (id == _focused_id) {
+        return;
+      }
+      mark_focus_dirty(_tree, _focused_id, id);
+      _focused_id = id;
     }
 
     SDL_Window* _handle = nullptr;

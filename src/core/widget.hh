@@ -25,10 +25,36 @@ namespace ccui {
     { t.paint(o, e, cv) };
   };
 
+  using node_id = std::uint32_t;
+
+  struct build_context {
+    node_id self = 0;
+    node_id last = 0;
+    node_id focused = 0;
+
+    [[nodiscard]] bool focused_within() const noexcept {
+      return self <= focused && focused <= last;
+    }
+  };
+
   template <class T>
-  concept stateful = requires(const T& t) {
+  concept context_aware = requires(const T& t, const build_context& cx) {
+    { t.body(cx) };
+  };
+
+  template <class T>
+  concept stateful = context_aware<T> || requires(const T& t) {
     { t.body() };
   };
+
+  template <stateful S>
+  auto build_body(const S& s, const build_context& cx) {
+    if constexpr (context_aware<S>) {
+      return s.body(cx);
+    } else {
+      return s.body();
+    }
+  }
 
   template <class T>
   concept container = requires(const T& t) {
@@ -38,8 +64,6 @@ namespace ccui {
       std::remove_cvref_t<decltype(t.children)>
     >::type;
   };
-
-  using node_id = std::uint32_t;
 
   class scene;
   struct dispatch_context {
@@ -83,14 +107,11 @@ namespace ccui {
   template <class W>
   struct node {
     node_id id = 0;
-
-    W widget;
-    extent size;
-    point offset;
-
-    bool focusable = false;
     node_id next = 0;
     node_id prev = 0;
+    point offset;
+    extent size;
+    W widget;
   };
 
   inline node_id next_node_id = 0;
@@ -110,12 +131,13 @@ namespace ccui {
 
   auto mount(stateful auto s) {
     auto id = ++next_node_id;
-    auto tree = mount(s.body());
+    auto tree = mount(build_body(s, { .self = id }));
     return node {
       .id = id,
       .widget = mounted {
         std::move(s),
-        std::move(tree)
+        std::move(tree),
+        next_node_id,
       }
     };
   }
@@ -139,8 +161,9 @@ namespace ccui {
   template <stateful S>
   struct mounted {
     S self;
-    decltype(mount(self.body())) tree;
-    bool dirty;
+    decltype(mount(build_body(self, {}))) tree;
+    node_id last = 0;
+    bool dirty = false;
   };
 
   template <class W, class V>
@@ -161,19 +184,45 @@ namespace ccui {
   }
 
   template <class W>
-  void rebuild(node<W>& n) {
+  void rebuild(node<W>& n, node_id focused = 0) {
     if constexpr (mounted_widget<W>) {
       if (n.widget.dirty) {
         apply(
           n.widget.tree,
-          n.widget.self.body()
+          build_body(n.widget.self, {
+            .self = n.id,
+            .last = n.widget.last,
+            .focused = focused,
+          })
         );
         n.widget.dirty = false;
       }
-      rebuild(n.widget.tree);
+      rebuild(n.widget.tree, focused);
     } else if constexpr (container<W>) {
       template for (auto& child : n.widget.children) {
-        rebuild(child);
+        rebuild(child, focused);
+      }
+    }
+  }
+
+  template <class W>
+  void mark_focus_dirty(node<W>& n, node_id from, node_id to) {
+    if constexpr (mounted_widget<W>) {
+      auto contains = [&](node_id id) {
+        return n.id <= id && id <= n.widget.last;
+      };
+      if (!contains(from) && !contains(to)) {
+        return;
+      }
+
+      using S = decltype(n.widget.self);
+      if constexpr (context_aware<S>) {
+        n.widget.dirty = true;
+      }
+      mark_focus_dirty(n.widget.tree, from, to);
+    } else if constexpr (container<W>) {
+      template for (auto& child : n.widget.children) {
+        mark_focus_dirty(child, from, to);
       }
     }
   }
