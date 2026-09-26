@@ -9,6 +9,7 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_properties.h>
 
+#include "../event.hh"
 #include "scene.hh"
 #include "core/widget.hh"
 #include "core/traverse.hh"
@@ -72,45 +73,116 @@ namespace ccui {
     }
 
     ~window() override {
-      _canvas.reset();
-
-      if (_ctx) {
-        SDL_GL_DestroyContext(_ctx);
-      }
-      if (_handle) {
-        SDL_DestroyWindow(_handle);
-      }
+      destroy();
     }
 
     window(const window&) = delete;
     window& operator=(const window&) = delete;
 
     bool handle_event(SDL_Event& ev) override {
-      return false;
+      switch (ev.type) {
+        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+          destroy();
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP: {
+          mouse_press press {
+            .button = static_cast<mouse_button>(ev.button.button),
+            .down = ev.button.down,
+            .x = ev.button.x,
+            .y = ev.button.y,
+          };
+
+          set_hover(hover_within(_tree, press.x, press.y));
+          dispatch_bubble(_tree, _hovered_id, press, *this);
+
+          if (press.down && press.button == mouse_button::left) {
+            auto hit = find_focusable(_tree, _hovered_id);
+            if (hit.focus != 0) {
+              set_focus(hit.focus);
+            }
+          }
+          break;
+        }
+        case SDL_EVENT_MOUSE_WHEEL:
+          set_hover(hover_within(_tree, ev.wheel.mouse_x, ev.wheel.mouse_y));
+          dispatch_bubble(_tree, _hovered_id, mouse_wheel {
+            .direction = static_cast<wheel_direction>(ev.wheel.direction),
+            .x = ev.wheel.x,
+            .y = ev.wheel.y,
+          }, *this);
+          break;
+        case SDL_EVENT_MOUSE_MOTION:
+          set_hover(hover_within(_tree, ev.motion.x, ev.motion.y));
+          dispatch_bubble(_tree, _hovered_id, mouse_motion {
+            .x = ev.motion.x,
+            .y = ev.motion.y,
+          }, *this);
+          break;
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+          set_hover(0);
+          break;
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP: {
+          key_press key {
+            .key = ev.key.key,
+            .mod = ev.key.mod,
+            .down = ev.key.down,
+            .repeat = ev.key.repeat,
+          };
+
+          auto disp = dispatch_to(_tree, _focused_id, key, *this);
+          auto handled = _focused_id != 0 && disp;
+          if (!handled && key.down && key.key == SDLK_TAB) {
+            move_focus((key.mod & SDL_KMOD_SHIFT) != 0);
+          } else if (!handled && key.down && key.key == SDLK_ESCAPE) {
+            set_focus(0);
+          }
+          break;
+        }
+      }
+      return true;
     }
 
     void frame() override {
+      SDL_GL_MakeCurrent(_handle, _ctx);
+
       int width = 0;
       int height = 0;
       SDL_GetWindowSizeInPixels(_handle, &width, &height);
+      auto w = static_cast<float>(width);
+      auto h = static_cast<float>(height);
 
-      _canvas->resize(
-        static_cast<std::uint32_t>(width),
-        static_cast<std::uint32_t>(height)
-      );
+      _canvas->resize(w, h);
 
+      rebuild(_tree, _focused_id, _hovered_id);
       measure(_tree, {
         .min = { 0.0f, 0.0f },
-        .max = {
-          static_cast<float>(width),
-          static_cast<float>(height),
-        },
+        .max = { w, h },
       });
       layout(_tree, { 0.0f, 0.0f });
-
       _canvas->begin();
       paint(_tree, *_canvas);
       _canvas->end();
+
+      SDL_GL_SwapWindow(_handle);
+    }
+
+    void destroy() override {
+      _canvas.reset();
+
+      if (_ctx) {
+        SDL_GL_DestroyContext(_ctx);
+        _ctx = nullptr;
+      }
+      if (_handle) {
+        SDL_DestroyWindow(_handle);
+        _handle = nullptr;
+      }
+    }
+
+    void focuse(node_id node) noexcept override {
+      set_focus(node);
     }
 
     [[nodiscard]] bool has_id(const SDL_Event& ev) const noexcept override {
@@ -131,7 +203,36 @@ namespace ccui {
       : _handle(handle),
         _ctx(ctx),
         _canvas(std::move(canvas)),
-        _tree(mount(std::move(root))) {}
+        _tree(mount(std::move(root))) {
+      auto range = link_focus(_tree);
+      _focus_first = range.first;
+      _focus_last = range.last;
+    }
+
+    void move_focus(bool backward) noexcept {
+      auto link = find_focus_link(_tree, _focused_id);
+      auto target = backward ? link.prev : link.next;
+      if (target == 0) {
+        target = backward ? _focus_last : _focus_first;
+      }
+      set_focus(target);
+    }
+
+    void set_focus(node_id id) noexcept {
+      if (id == _focused_id) {
+        return;
+      }
+      mark_context_dirty(_tree, _focused_id, id);
+      _focused_id = id;
+    }
+
+    void set_hover(node_id id) noexcept {
+      if (id == _hovered_id) {
+        return;
+      }
+      mark_context_dirty(_tree, _hovered_id, id);
+      _hovered_id = id;
+    }
 
     SDL_Window* _handle = nullptr;
     SDL_GLContext _ctx = nullptr;
@@ -139,6 +240,10 @@ namespace ccui {
     std::optional<gfx::canvas> _canvas;
 
     node<mounted<S>> _tree;
+    node_id _hovered_id = 0;
+    node_id _focused_id = 0;
+    node_id _focus_first = 0;
+    node_id _focus_last = 0;
   };
 }
 
